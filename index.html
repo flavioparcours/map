@@ -1,31 +1,322 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 <head>
-  <meta charset="utf-8" />
-  <title>Mapa Europa</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
-  <style>
-    #map { height: 100vh; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Euromobilité 2023/2024 — Parcours le monde sud est</title>
+
+<!-- Leaflet CSS -->
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-sA+4wV8EGNlpTiM9f5Y6EvmLv0JbApRJC/c48Sm9ENM="
+  crossorigin=""
+/>
+
+<style>
+  /* Reset & base */
+  body, html {
+    margin: 0; padding: 0; height: 100%; font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    background: #f0f4f8;
+  }
+  #map {
+    height: 100vh;
+    width: 100vw;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Modal backdrop */
+  #modalBackdrop {
+    position: fixed;
+    top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeInBg 0.3s forwards;
+  }
+  @keyframes fadeInBg {
+    from {background: rgba(0,0,0,0);}
+    to {background: rgba(0,0,0,0.5);}
+  }
+  @keyframes fadeOutBg {
+    from {background: rgba(0,0,0,0.5);}
+    to {background: rgba(0,0,0,0);}
+  }
+
+  /* Modal container */
+  #modalContent {
+    background: white;
+    max-width: 600px;
+    width: 90vw;
+    max-height: 80vh;
+    overflow-y: auto;
+    border-radius: 12px;
+    padding: 20px 30px;
+    box-shadow: 0 12px 28px rgba(0,0,0,0.25);
+    position: relative;
+    opacity: 0;
+    transform: translateY(20px);
+    animation: fadeInModal 0.4s forwards;
+  }
+  @keyframes fadeInModal {
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes fadeOutModal {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+  }
+
+  /* Close button */
+  #modalClose {
+    position: absolute;
+    top: 15px; right: 15px;
+    background: #ef476f;
+    color: white;
+    border: none;
+    font-size: 1.2rem;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  #modalClose:hover {
+    background: #d03a5c;
+  }
+
+  /* Content styles */
+  h2 {
+    margin-top: 0;
+    color: #118ab2;
+  }
+  h3 {
+    margin-bottom: 6px;
+    color: #073b4c;
+  }
+  p, li {
+    color: #333;
+    line-height: 1.4;
+  }
+  ul {
+    padding-left: 20px;
+  }
+  .question {
+    font-weight: 600;
+    margin-top: 12px;
+  }
+  .answer {
+    margin-left: 15px;
+    color: #555;
+    font-style: italic;
+  }
+</style>
 </head>
 <body>
-  <div id="map"></div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    const map = L.map('map').setView([48.8566, 2.3522], 4); // Paris center
+<div id="map"></div>
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
+<div id="modalBackdrop" aria-hidden="true">
+  <div id="modalContent" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <button id="modalClose" aria-label="Fermer la fenêtre modale">&times; Fermer</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
 
-    // Exemplo de marcador:
-    L.marker([41.9028, 12.4964]).addTo(map)
-      .bindPopup('<b>Italie</b><br>Amadou<br>2 mois').openPopup();
-  </script>
+<!-- Leaflet JS -->
+<script
+  src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-o+P+pmuyjOcKaQdq9A+6vEyjD2Lc6bW/J7EjhPe1p+0="
+  crossorigin=""
+></script>
+
+<script>
+  // Dados dos países com testemunhos + perguntas
+  const countriesData = {
+    "Italie": {
+      coords: [41.8719, 12.5674],
+      witness: {
+        name: "Amadou",
+        duration: "2 mois",
+        domain: "restauration et social; CES",
+        location: "Triggiano, Italie",
+        testimony: "Je recommande cette expérience car ça permet d’en apprendre davantage sur soi et d'améliorer ses capacités ! C'est une super expérience à vivre"
+      },
+      questions: [
+        { q: "🎤 Dans quelle ville italienne se tient chaque année un festival de chanson tellement suivi qu’il influence même la politique ?", a: "Sanremo." },
+        { q: "🍕 Quel plat aujourd’hui mondialement célèbre était à l’origine une nourriture de rue pour les pauvres à Naples ?", a: "La pizza." },
+        { q: "🎭 Quel accessoire vénitien était utilisé non seulement pour les bals, mais aussi pour séduire, espionner et fuir l’église ?", a: "Le masque vénitien." }
+      ]
+    },
+    "Malte": {
+      coords: [35.9375, 14.3754],
+      witness: {
+        name: "Zalati",
+        domain: "HOTELLERIE ET RESTAURATION; stage professionnel",
+        location: "La Vallette, Malte",
+        testimony: "C'est une expérience qui ne s'explique pas, il faut la vivre !"
+      },
+      questions: [
+        { q: "🗿 Quel site préhistorique maltais est si ancien que les habitants croyaient que seuls des géants pouvaient l’avoir construit ?", a: "Ġgantija." },
+        { q: "📚 Quelle est la particularité de la langue maltaise par rapport aux autres langues sémitiques ?", a: "C’est la seule langue sémitique écrite en alphabet latin." },
+        { q: "☀️ Malte est souvent appelée... ?", a: "\"Le Hollywood de la Méditerranée\", à cause des nombreux films tournés sur l’île." }
+      ]
+    },
+    "Espagne": {
+      coords: [40.4637, -3.7492],
+      witness: {
+        name: "Anne-Sophie",
+        domain: "petit enfance; stage professionnel",
+        duration: "5 mois",
+        location: "Barcelone, Espagne",
+        testimony: "Grâce à cette expérience je construis mon business plan afin de me lancer moi aussi dans l'aventure de la petite enfance."
+      },
+      questions: [
+        { q: "🧠 Quel village espagnol abrite un musée surréaliste construit par Salvador Dalí lui-même, où il est aussi enterré ?", a: "Figueres." },
+        { q: "🍅 Dans quelle fête des milliers de personnes s’affrontent à coups de tomates ?", a: "La Tomatina (Buñol)." },
+        { q: "🐂 Quelle expression célèbre résume la passion espagnole pour les émotions fortes ?", a: "¡Olé!" }
+      ]
+    },
+    "Portugal": {
+      coords: [39.3999, -8.2245],
+      witness: {
+        name: "Andrea, 24 ans",
+        domain: "Microbiologie; stage professionnel",
+        testimony: "Montée en compétences techniques et découverte de bonnes pratiques portugaises."
+      },
+      questions: [
+        { q: "Quel est le pastel croustillant et crémeux très connu au Portugal ?", a: "Le pastel de nata." },
+        { q: "Le fado est un style musical portugais qui exprime souvent quel sentiment profond ?", a: "La saudade (nostalgie et mélancolie)." },
+        { q: "Quel navigateur portugais a ouvert la route maritime vers l’Inde au XVe siècle ?", a: "Vasco de Gama." }
+      ]
+    },
+    "Grèce": {
+      coords: [39.0742, 21.8243],
+      witness: {
+        name: "Zineb",
+        duration: "2 mois",
+        domain: "Travail avec des migrants; stage professionnel",
+        testimony: "Il faut savoir que les grecques adorent les tag : à chaque fois qu'un commerçant peint sa devanture ils la tag le soir même. De vrais artistes ces grecs ! ;)"
+      },
+      questions: [
+        { q: "🧠 Quel mot inventé en Grèce désigne aujourd’hui un citoyen qui ne participe pas à la vie politique ?", a: "Idiotes — origine du mot “idiot” en grec ancien." },
+        { q: "👀 Quel est le symbole très utilisé en Grèce pour se protéger du mauvais œil ?", a: "L’œil bleu (mati), souvent porté en bijou." },
+        { q: "Quel concept politique né en Grèce au Ve siècle av. J.-C. signifie “le pouvoir du peuple” ?", a: "La démocratie." }
+      ]
+    },
+    "Slovaquie": {
+      coords: [48.6690, 19.6990],
+      witness: {
+        name: "Kilidine, 22 ans",
+        duration: "15 jours (2 semaines)",
+        domain: "Echange interculturel “Building bridges”",
+        testimony: "J'ai vraiment appris à aller vers les autres."
+      },
+      questions: [
+        { q: "🚆 Ce pays a construit l’une des premières lignes de train électrique en Europe. Dans quelle région ?", a: "Dans les Hautes Tatras — elle fonctionne encore aujourd’hui." },
+        { q: "🗺️ Avant 1993, comment s’appelait ce pays lorsqu’il était uni avec la Tchéquie ?", a: "La Tchécoslovaquie." },
+        { q: "🎄 Quel est un rituel étrange de Noël en Slovaquie ?", a: "Certaines familles gardent une carpe vivante dans la baignoire pendant plusieurs jours avant de la cuisiner." }
+      ]
+    },
+    "Belgique": {
+      coords: [50.8503, 4.3517],
+      witness: {
+        name: "Imane",
+        domain: "Psychologie / RH; stage professionnel",
+        testimony: ""
+      },
+      questions: [
+        { q: "🧬 Quelle invention belge a révolutionné le monde médical en permettant le classement sanguin ?", a: "La découverte des groupes sanguins par le Belge Jules Bordet (prix Nobel)." },
+        { q: "🍟 Dans quel pays les frites ont-elles réellement été inventées ?", a: "La Belgique." },
+        { q: "🍫 Quel produit belge est souvent offert comme preuve d’amour, de luxe... ou d’excuse ?", a: "Le chocolat belge." }
+      ]
+    },
+    "Pologne": {
+      coords: [51.9194, 19.1451],
+      witness: {
+        name: "Miguel Santos HR",
+        testimony: "« Quand je suis arrivé, je pensais que je ne resterais pas plus d'une semaine, après 4 mois je ne voulais plus revenir. C'est fou combien on apprend sur soi-même. »"
+      },
+      questions: [
+        { q: "La vodka polonaise est souvent fabriquée à partir de quel ingrédient principal ?", a: "Des pommes de terre." },
+        { q: "Les pierogi, plat traditionnel, ressemblent à quoi ?", a: "Des raviolis farcis de viande, pommes de terre ou chou." },
+        { q: "La légende du dragon de Wawel parle d’un monstre vivant dans une grotte proche de quelle ville ?", a: "Cracovie." }
+      ]
+    }
+  };
+
+  // Inicializar o mapa
+  const map = L.map("map").setView([48.0, 12.0], 4);
+
+  // Adicionar camada de mapa (OpenStreetMap)
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution:
+      '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  }).addTo(map);
+
+  // Modal elementos
+  const modalBackdrop = document.getElementById("modalBackdrop");
+  const modalContent = document.getElementById("modalContent");
+  const modalBody = document.getElementById("modalBody");
+  const modalClose = document.getElementById("modalClose");
+
+  // Função para criar conteúdo modal
+  function createModalContent(data) {
+    let html = `<h2 id="modalTitle">${data.witness.name || "Témoin"} — ${data.witness.domain || ""}</h2>`;
+    if(data.witness.duration) html += `<p><strong>Durée :</strong> ${data.witness.duration}</p>`;
+    if(data.witness.location) html += `<p><strong>Lieu :</strong> ${data.witness.location}</p>`;
+    if(data.witness.testimony) html += `<p style="font-style:italic; margin-top: 12px;">"${data.witness.testimony}"</p>`;
+    if(data.questions && data.questions.length > 0) {
+      html += "<h3>Questions</h3><ul>";
+      data.questions.forEach(item => {
+        html += `<li><div class="question">${item.q}</div><div class="answer">👉 ${item.a}</div></li>`;
+      });
+      html += "</ul>";
+    }
+    return html;
+  }
+
+  // Mostrar modal com animação fade-in
+  function showModal(countryData) {
+    modalBody.innerHTML = createModalContent(countryData);
+    modalBackdrop.style.display = "flex";
+    modalBackdrop.setAttribute("aria-hidden", "false");
+    modalContent.style.animation = "fadeInModal 0.4s forwards";
+    modalBackdrop.style.animation = "fadeInBg 0.3s forwards";
+  }
+
+  // Esconder modal com animação fade-out
+  function hideModal() {
+    modalContent.style.animation = "fadeOutModal 0.4s forwards";
+    modalBackdrop.style.animation = "fadeOutBg 0.3s forwards";
+    setTimeout(() => {
+      modalBackdrop.style.display = "none";
+      modalBackdrop.setAttribute("aria-hidden", "true");
+    }, 400);
+  }
+
+  modalClose.addEventListener("click", hideModal);
+  modalBackdrop.addEventListener("click", (e) => {
+    if (e.target === modalBackdrop) hideModal();
+  });
+
+  // Adicionar marcadores ao mapa
+  for (const [country, data] of Object.entries(countriesData)) {
+    const marker = L.marker(data.coords).addTo(map);
+    marker.bindTooltip(country, {permanent:false, direction:'top', offset:[0,-10]});
+    marker.on("click", () => showModal(data));
+  }
+</script>
+
 </body>
 </html>
